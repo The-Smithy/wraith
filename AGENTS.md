@@ -88,4 +88,4 @@ In the pull request, say what you actually ran and saw. List anything you couldn
 
 ## Pull request description
 
-Keep it short: what changed, why, how you checked it, and what you couldn't check. Say that an agent wrote it.
+Keep it short: what changed, why, how you checked it, and what you couldn't check.

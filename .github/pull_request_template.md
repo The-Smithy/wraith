@@ -17,4 +17,3 @@
 - [ ] New behaviour or fixes have tests
 - [ ] No real paths, usernames, project names or command lines added
 - [ ] Sampler changes: before and after numbers included
-- [ ] Written by an AI agent: yes / no
