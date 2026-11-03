@@ -664,7 +664,7 @@ mod tests {
 
     #[test]
     fn opening_a_folder_is_not_mistaken_for_a_script() {
-        let c = classify("Code.exe", CODE, &args(&[CODE, r"C:\Projects\hearth"]));
+        let c = classify("Code.exe", CODE, &args(&[CODE, r"C:\Projects\my-app"]));
         assert_eq!(c.role, "VS Code: Main process");
     }
 

@@ -724,7 +724,7 @@ mod tests {
         assert!(is_tool_path(r"c:\users\me\.vscode\extensions\foo"));
         assert!(is_tool_path("/usr/share/code"));
         assert!(is_tool_path("/home/me/.local/share/thing"));
-        assert!(!is_tool_path("/home/me/projects/hearth"));
-        assert!(!is_tool_path(r"c:\projects\hearth"));
+        assert!(!is_tool_path("/home/me/projects/my-app"));
+        assert!(!is_tool_path(r"c:\projects\my-app"));
     }
 }
