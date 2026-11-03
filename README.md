@@ -74,7 +74,7 @@ History and settings live in `%LOCALAPPDATA%\Wraith`, and history is saved every
 | `src-tauri/src/leaks.rs` | Leak statistics |
 | `src-tauri/src/insights.rs` | Optimization rules |
 | `src-tauri/src/history.rs` | Bounded series and persistence |
-| `src-tauri/src/win.rs` | Win32 calls |
+| `src-tauri/src/platform/` | Everything that asks the OS a question, one file per OS |
 | `src/impact.ts` | What ending each kind of process does |
 | `src/views/` | One file per screen |
 

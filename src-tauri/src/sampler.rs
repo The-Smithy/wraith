@@ -12,8 +12,8 @@ use crate::history::{metric_points, Bucket, History, ProcHist, SysBucket};
 use crate::insights;
 use crate::leaks::{self, Point, Thresholds};
 use crate::model::*;
+use crate::platform;
 use crate::relate::{detect_project, relate, Context, Meta, Raw};
-use crate::win;
 
 const MB: f64 = 1024.0 * 1024.0;
 const SERVICE_REFRESH_SECS: u64 = 30;
@@ -40,7 +40,7 @@ pub struct Sampler {
     first_seen: HashMap<u32, u64>,
     home: Option<PathBuf>,
     drives: Vec<(String, String)>,
-    services: Vec<win::Service>,
+    services: Vec<platform::Service>,
     services_at: u64,
     pub history: History,
     leaks: Vec<LeakReport>,
@@ -64,13 +64,13 @@ impl Sampler {
             history.span = u64::from(settings.bucket_secs);
         }
         Sampler {
-            sys: System::new().expect("sysinfo supports Windows"),
+            sys: System::new().expect("sysinfo supports this OS"),
             users: Users::new_with_refreshed_list().ok(),
             users_at: now,
             metas: HashMap::new(),
             first_seen: HashMap::new(),
             home: dirs::home_dir(),
-            drives: win::drive_devices(),
+            drives: platform::drive_devices(),
             services: Vec::new(),
             services_at: 0,
             history,
@@ -81,7 +81,7 @@ impl Sampler {
             pressure_notified: false,
             previous: HashMap::new(),
             last_tick: Instant::now(),
-            elevated: win::is_elevated(),
+            elevated: platform::is_elevated(),
             seq: 0,
             self_pid: std::process::id(),
         }
@@ -119,17 +119,17 @@ impl Sampler {
             self.users_at = now;
         }
         if now.saturating_sub(self.services_at) >= SERVICE_REFRESH_SECS {
-            self.services = win::running_services();
+            self.services = platform::running_services();
             self.services_at = now;
         }
 
         let cpu_count = self.sys.cpus().len().max(1);
-        let threads = win::thread_counts();
+        let threads = platform::thread_counts();
         let raws = self.collect_raw(&threads, cpu_count, elapsed);
 
-        let tcp = win::tcp_state();
+        let tcp = platform::tcp_state();
         let mut ctx = Context {
-            windows: win::visible_windows(),
+            windows: platform::visible_windows(),
             connections: tcp.connections_by_pid.clone(),
             ..Default::default()
         };
@@ -230,7 +230,7 @@ impl Sampler {
             // would change if a real start time ever showed up.
             let start_time = match (self.first_seen.get(&pid_num), p.start_time()) {
                 (Some(seen), _) => *seen,
-                (None, 0) => match win::start_time(pid_num) {
+                (None, 0) => match platform::start_time(pid_num) {
                     Some(real) => real,
                     None => *self.first_seen.entry(pid_num).or_insert_with(now_secs),
                 },
@@ -243,12 +243,12 @@ impl Sampler {
             if !self.metas.contains_key(&key) {
                 let mut exe = p.exe().map_or_else(String::new, |e| e.to_string_lossy().into_owned());
                 if exe.is_empty() {
-                    exe = win::image_path(pid_num, &self.drives).unwrap_or_default();
+                    exe = platform::image_path(pid_num, &self.drives).unwrap_or_default();
                 }
                 let args: Vec<String> = p.cmd().iter().map(|a| a.to_string_lossy().into_owned()).collect();
                 let cwd = p.cwd().map_or_else(String::new, |c| c.to_string_lossy().into_owned());
                 let class = classify(&name, &exe, &args);
-                let file = if exe.is_empty() { win::FileInfo::default() } else { win::file_info(&exe) };
+                let file = if exe.is_empty() { platform::FileInfo::default() } else { platform::file_info(&exe) };
                 let project = if matches!(class.category, Category::System | Category::Browser) {
                     None
                 } else {
@@ -272,7 +272,7 @@ impl Sampler {
             }
 
             let exe = self.metas.get(&key).map_or_else(String::new, |m| m.exe.clone());
-            let stats = win::proc_stats(pid_num);
+            let stats = platform::proc_stats(pid_num);
             let disk = p.disk_usage();
             let user = p
                 .user_id()
@@ -307,7 +307,7 @@ impl Sampler {
     }
 
     fn system_info(&self, raws: &[Raw], cpu_count: usize) -> SystemInfo {
-        let perf = win::perf_info();
+        let perf = platform::perf_info();
         SystemInfo {
             total_memory: self.sys.total_memory(),
             used_memory: self.sys.used_memory(),
@@ -632,7 +632,7 @@ fn sample_of(p: &ProcessInfo, now: u64) -> Bucket {
     }
 }
 
-fn build_ports(tcp: &win::TcpState, processes: &[ProcessInfo], now: u64) -> Vec<PortInfo> {
+fn build_ports(tcp: &platform::TcpState, processes: &[ProcessInfo], now: u64) -> Vec<PortInfo> {
     let by_pid: HashMap<u32, &ProcessInfo> = processes.iter().map(|p| (p.pid, p)).collect();
     // A server listening on IPv4 and IPv6 is one row, shown as its most exposed address.
     let mut seen: HashMap<(u16, u32), PortInfo> = HashMap::new();
