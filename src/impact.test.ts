@@ -119,6 +119,13 @@ describe("endImpact", () => {
     expect(endImpact(view).label).toBe("Breaks a web view");
   });
 
+  it("doesn't promise that WebKit restarts its helpers", () => {
+    for (const role of ["WebKit: GPU process", "WebKit: Network process"]) {
+      const helper = proc({ category: "browser", tech: "WebKit", appLabel: "Wraith", role });
+      expect(endImpact(helper).label).toBe("Breaks a web view");
+    }
+  });
+
   it("names the services that would stop", () => {
     const one = endImpact(proc({ category: "service", services: ["Parsec"] }));
     expect(one.label).toBe("Stops a service");

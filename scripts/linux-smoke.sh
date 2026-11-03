@@ -13,10 +13,31 @@ server=$!
 export WRAITH_DATA_DIR="$out/data"
 ./src-tauri/target/debug/wraith >"$out/app.log" 2>&1 &
 app=$!
-sleep 25
 
 status=0
-kill -0 "$app" 2>/dev/null || { echo "FAILED: the app exited early"; status=1; }
+
+# Wait for the page itself, because a window can exist with nothing drawn in it. A desktop
+# with an empty window has a few dozen colours, and a page with text has hundreds.
+needed=100
+colours=0
+started=$SECONDS
+while [ $((SECONDS - started)) -lt 120 ]; do
+  import -window root "$out/screenshot.png" 2>/dev/null
+  colours=$(identify -format %k "$out/screenshot.png" 2>/dev/null)
+  colours=${colours:-0}
+  [ "$colours" -ge "$needed" ] && break
+  sleep 3
+done
+if [ "$colours" -ge "$needed" ]; then
+  echo "ok     the page drew after $((SECONDS - started))s ($colours colours)"
+else
+  echo "FAILED the page never drew ($colours colours after $((SECONDS - started))s)"
+  status=1
+fi
+
+# Give it a few samples so the screenshot shows real numbers.
+sleep 10
+kill -0 "$app" 2>/dev/null || { echo "FAILED the app exited early"; status=1; }
 import -window root "$out/screenshot.png" || echo "could not take a screenshot"
 
 WRAITH_DUMP="$out/snapshot.json" cargo test --manifest-path src-tauri/Cargo.toml --lib dump_live -- --ignored --nocapture 2>&1 | grep -E "sample took|test result" || true

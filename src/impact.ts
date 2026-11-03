@@ -112,7 +112,8 @@ function ownImpact(p: ProcessInfo): Impact {
     case "editor":
       return editorPart(p, role);
     case "browser":
-      if ((p.tech === "WebView2" || p.tech === "WebKit") && !HELPERS.test(role)) {
+      // HELPERS describes Chromium, so it says nothing about what WebKit restarts.
+      if (p.tech === "WebKit" || (p.tech === "WebView2" && !HELPERS.test(role))) {
         return impact("caution", "Breaks a web view", [`The web view inside ${p.appLabel} stops`, `${p.appLabel} may crash`], `Restart ${p.appLabel} if it misbehaves.`);
       }
       return chromiumPart(p, role, "browser") ?? impact("caution", "Browser may glitch", ["A background part of the browser stops"], "Restart the browser if something breaks.");

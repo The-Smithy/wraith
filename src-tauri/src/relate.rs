@@ -531,7 +531,7 @@ mod tests {
         ctx.windows.insert(80, "Hello".into());
         let out = build(
             vec![
-                proc(70, 1, "mysvc.exe", 100, &[]),
+                proc(70, 1, "mysvc.exe", 100, &["mysvc.exe"]),
                 proc(71, 1, "svchost.exe", 100, &[]),
                 proc(79, 1, "host.exe", 100, &[]),
                 proc(80, 79, "child.exe", 110, &[]),
@@ -623,7 +623,7 @@ mod tests {
         ctx.services.insert(71, vec!["Windows Update".into()]);
         ctx.services.insert(72, vec!["Parsec".into()]);
         let out = build(
-            vec![proc(71, 1, "svchost.exe", 100, &[]), proc(72, 1, "parsecd.exe", 100, &[])],
+            vec![proc(71, 1, "svchost.exe", 100, &[]), proc(72, 1, "parsecd.exe", 100, &["parsecd.exe"])],
             &ctx,
         );
         let host = out.iter().find(|p| p.pid == 71).unwrap();

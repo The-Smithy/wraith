@@ -169,7 +169,7 @@ const LINUX_SYSTEM_NAMES: &[&str] = &[
     "pipewire", "pipewire-pulse", "wireplumber", "pulseaudio", "xorg", "xwayland", "gnome-shell", "plasmashell",
     "kwin_wayland", "kwin_x11", "mutter", "sway", "hyprland", "sddm", "gdm", "gdm3", "lightdm", "login", "agetty",
     "cron", "crond", "rsyslogd", "irqbalance", "snapd", "multipathd", "accounts-daemon", "upowerd", "modemmanager",
-    "avahi-daemon", "bluetoothd", "sshd", "wpa_supplicant", "thermald", "auditd",
+    "avahi-daemon", "bluetoothd", "sshd", "wpa_supplicant", "thermald", "auditd", "(sd-pam)",
 ];
 
 const LINUX_SYSTEM_PREFIXES: &[&str] = &["systemd", "gsd-", "gvfs", "ibus-", "xdg-", "at-spi", "gnome-session"];
@@ -521,8 +521,14 @@ pub fn classify(name: &str, exe: &str, args: &[String]) -> Class {
         };
         return class(Category::Browser, &format!("{browser}: {role}"), Some(browser));
     }
-    if matches!(exe_stem, "webkitwebprocess" | "webkitnetworkprocess" | "webkitgpuprocess") {
-        return class(Category::Browser, "WebKit: Web content", Some("WebKit"));
+    let webkit_role = match exe_stem {
+        "webkitwebprocess" => Some("WebKit: Web content"),
+        "webkitnetworkprocess" => Some("WebKit: Network process"),
+        "webkitgpuprocess" => Some("WebKit: GPU process"),
+        _ => None,
+    };
+    if let Some(role) = webkit_role {
+        return class(Category::Browser, role, Some("WebKit"));
     }
     if stem_name == "msedgewebview2" {
         let role = chromium_role(args, "Web content").unwrap_or_else(|| "Main process".into());
@@ -758,11 +764,24 @@ mod tests {
             ("gsd-color", "/usr/libexec/gsd-color"),
             ("NetworkManager", "/usr/sbin/NetworkManager"),
             ("sshd", "/usr/sbin/sshd"),
+            // Its executable can't be read without root, so the name has to be enough.
+            ("(sd-pam)", ""),
         ] {
-            assert_eq!(classify(name, exe, &[]).category, Category::System, "{name}");
+            assert_eq!(classify(name, exe, &args(&[name])).category, Category::System, "{name}");
         }
         assert_eq!(classify("nginx", "/usr/sbin/nginx", &[]).category, Category::DevServer);
         assert_eq!(classify("bash", "/usr/bin/bash", &[]).category, Category::Terminal);
+    }
+
+    #[test]
+    fn webkit_processes_are_named_for_what_they_do() {
+        let role = |name: &str| {
+            let exe = format!("/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/{name}");
+            classify(name, &exe, &args(&[&exe])).role
+        };
+        assert_eq!(role("WebKitWebProcess"), "WebKit: Web content");
+        assert_eq!(role("WebKitNetworkProcess"), "WebKit: Network process");
+        assert_eq!(role("WebKitGPUProcess"), "WebKit: GPU process");
     }
 
     #[test]
