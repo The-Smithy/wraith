@@ -3,9 +3,9 @@ mod history;
 mod insights;
 mod leaks;
 mod model;
+mod platform;
 mod relate;
 mod sampler;
-mod win;
 
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -172,7 +172,7 @@ fn still_same_process(pid: u32, start_time: u64) -> bool {
     let target = Pid::from_u32(pid);
     sys.refresh_processes_specifics(ProcessesToUpdate::Some(&[target]), true, ProcessRefreshKind::nothing());
     sys.process(target).is_some_and(|p| match p.start_time() {
-        0 => win::start_time(pid) == Some(start_time),
+        0 => platform::start_time(pid) == Some(start_time),
         reported => reported == start_time,
     })
 }
@@ -216,7 +216,7 @@ fn kill_process(key: String, tree: bool, shared: State<'_, Arc<Shared>>) -> Resu
         } else if !still_same_process(process.pid, process.start_time) {
             Err("It already exited, and its PID may have been reused.".to_string())
         } else {
-            win::terminate(process.pid)
+            platform::terminate(process.pid)
         };
         match result {
             Ok(()) => outcome.killed.push(process.pid),
@@ -236,14 +236,7 @@ fn reveal_path(path: String) -> Result<(), String> {
     if !target.exists() {
         return Err("That path no longer exists.".into());
     }
-    let mut command = std::process::Command::new("explorer");
-    if target.is_dir() {
-        command.arg(target);
-    } else {
-        use std::os::windows::process::CommandExt;
-        command.raw_arg(format!("/select,\"{path}\""));
-    }
-    command.spawn().map(|_| ()).map_err(|e| e.to_string())
+    platform::reveal(target)
 }
 
 #[tauri::command]
@@ -343,8 +336,12 @@ pub fn run() {
         quitting: AtomicBool::new(false),
     });
 
-    tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| show_main(app)))
+    let builder = tauri::Builder::default();
+    // Debug builds can run alongside an installed copy, so development isn't blocked by it.
+    #[cfg(not(debug_assertions))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| show_main(app)));
+
+    builder
         .plugin(tauri_plugin_notification::init())
         .manage(shared.clone())
         .invoke_handler(tauri::generate_handler![

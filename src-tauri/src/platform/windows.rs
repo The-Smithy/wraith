@@ -34,6 +34,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
     GW_OWNER,
 };
 
+use super::{FileInfo, Listener, PerfInfo, ProcStats, Service, TcpState};
+
 /// Closes a Win32 handle when it goes out of scope.
 struct Owned(HANDLE);
 
@@ -44,16 +46,6 @@ impl Drop for Owned {
             let _ = CloseHandle(self.0);
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ProcStats {
-    pub private: u64,
-    pub working_set: u64,
-    pub private_ws: u64,
-    pub handles: u32,
-    pub gdi: u32,
-    pub user_objects: u32,
 }
 
 /// `PROCESS_MEMORY_COUNTERS_EX2`, which adds the private working set on Windows
@@ -151,18 +143,6 @@ pub fn thread_counts() -> HashMap<u32, u32> {
     out
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct PerfInfo {
-    pub commit_total: u64,
-    pub commit_limit: u64,
-    pub system_cache: u64,
-    pub kernel_paged: u64,
-    pub kernel_nonpaged: u64,
-    pub process_count: u32,
-    pub thread_count: u32,
-    pub handle_count: u32,
-}
-
 pub fn perf_info() -> PerfInfo {
     let mut info = PERFORMANCE_INFORMATION::default();
     let size = std::mem::size_of::<PERFORMANCE_INFORMATION>() as u32;
@@ -181,23 +161,6 @@ pub fn perf_info() -> PerfInfo {
         thread_count: info.ThreadCount,
         handle_count: info.HandleCount,
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct Listener {
-    pub port: u16,
-    pub address: String,
-    pub exposed: bool,
-    pub pid: u32,
-}
-
-#[derive(Debug, Default)]
-pub struct TcpState {
-    pub listeners: Vec<Listener>,
-    /// Established connections per owning process.
-    pub connections_by_pid: HashMap<u32, u32>,
-    /// Established connections per local port, used to see if a server has clients.
-    pub connections_by_port: HashMap<u16, u32>,
 }
 
 const STATE_LISTEN: u32 = 2;
@@ -291,13 +254,6 @@ pub fn tcp_state() -> TcpState {
     }
 
     state
-}
-
-#[derive(Debug, Clone)]
-pub struct Service {
-    pub name: String,
-    pub display_name: String,
-    pub pid: u32,
 }
 
 fn from_wide(ptr: PWSTR) -> String {
@@ -433,6 +389,18 @@ pub fn terminate(pid: u32) -> Result<(), String> {
     }
 }
 
+/// Opens the file manager with path selected, or at path if it is a folder.
+pub fn reveal(path: &std::path::Path) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    let mut command = std::process::Command::new("explorer");
+    if path.is_dir() {
+        command.arg(path);
+    } else {
+        command.raw_arg(format!("/select,\"{}\"", path.display()));
+    }
+    command.spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
 pub fn is_elevated() -> bool {
     // SAFETY: the token handle is owned, and the output struct matches the class requested.
     unsafe {
@@ -453,12 +421,6 @@ pub fn is_elevated() -> bool {
         .is_ok()
             && elevation.TokenIsElevated != 0
     }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct FileInfo {
-    pub description: Option<String>,
-    pub company: Option<String>,
 }
 
 /// Names from an executable's version resource.
