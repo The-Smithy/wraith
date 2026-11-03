@@ -25,6 +25,7 @@ function proc(over: Partial<ProcessInfo>): ProcessInfo {
     windowTitle: null,
     presence: "child",
     limited: false,
+    memoryKnown: true,
     private: 0,
     workingSet: 0,
     privateWs: 0,
@@ -94,6 +95,28 @@ describe("endImpact", () => {
     const worker = endImpact(proc({ appKey: "root", appLabel: "ASUS NodeJS Web Framework", role: "ASUS NodeJS Web Framework: Worker process" }));
     expect(worker.label).toBe("May break app");
     expect(worker.effects[0]).toContain("ASUS NodeJS Web Framework");
+  });
+
+  it("recognises Wraith on every platform", () => {
+    expect(endImpact(proc({ name: "wraith" })).risk).toBe("blocked");
+  });
+
+  it("does not call an app safe when windows can't be detected", () => {
+    const app = endImpact(proc({ presence: "unknown", role: "GIMP" }));
+    expect(app.label).toBe("Stops app");
+    expect(app.risk).toBe("caution");
+  });
+
+  it("explains terminals, multiplexers and shells differently", () => {
+    const term = { category: "terminal" } as const;
+    expect(endImpact(proc({ ...term, role: "GNOME Terminal", presence: "unknown" })).label).toBe("Closes terminal");
+    expect(endImpact(proc({ ...term, role: "Terminal multiplexer" })).label).toBe("Ends all sessions");
+    expect(endImpact(proc({ ...term, role: "Zsh" })).label).toBe("Closes shell");
+  });
+
+  it("treats WebKit like any other embedded web view", () => {
+    const view = proc({ category: "browser", tech: "WebKit", appLabel: "Wraith", role: "WebKit: Web content" });
+    expect(endImpact(view).label).toBe("Breaks a web view");
   });
 
   it("names the services that would stop", () => {

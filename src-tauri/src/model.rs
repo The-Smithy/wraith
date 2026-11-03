@@ -58,6 +58,8 @@ pub enum Presence {
     Child,
     /// Windowless and not tied to any running app.
     Background,
+    /// Not tied to an app, and the OS can't say if it has a window. Wayland doesn't tell.
+    Unknown,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -93,6 +95,8 @@ pub struct ProcessInfo {
     pub window_title: Option<String>,
     pub presence: Presence,
     pub limited: bool,
+    /// Memory can be known even when the process is otherwise off limits, as on Linux.
+    pub memory_known: bool,
     /// Committed private bytes. This is the number that matters for leaks.
     pub private: u64,
     /// Full working set, including pages shared with other processes.
@@ -185,6 +189,8 @@ pub struct SystemInfo {
     pub limited_processes: u32,
     pub elevated: bool,
     pub host_name: String,
+    pub platform: String,
+    pub windows_known: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]

@@ -10,7 +10,7 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: "browser", label: "Browsers" },
   { value: "app", label: "Apps" },
   { value: "service", label: "Services" },
-  { value: "system", label: "Windows" },
+  { value: "system", label: "System" },
 ];
 
 export interface ProcessViewState {

@@ -36,6 +36,17 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 use super::{FileInfo, Listener, PerfInfo, ProcStats, Service, TcpState};
 
+pub const PLATFORM: &str = "windows";
+pub const SYSTEM_APP_LABEL: &str = "Windows";
+pub const SERVICES_APP_LABEL: &str = "Windows Services";
+pub const SYSTEM_ROLE: &str = "Windows component";
+pub const KERNEL_POOL_NAME: &str = "Kernel non-paged pool";
+
+/// True when a process with no window found really has none.
+pub fn windows_fully_known() -> bool {
+    true
+}
+
 /// Closes a Win32 handle when it goes out of scope.
 struct Owned(HANDLE);
 
@@ -75,7 +86,7 @@ pub fn proc_stats(pid: u32) -> Option<ProcStats> {
     // size, and the process handle stays open until `Owned` drops.
     unsafe {
         let handle = Owned(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?);
-        let mut stats = ProcStats::default();
+        let mut stats = ProcStats { accessible: true, ..Default::default() };
 
         let mut counters = MemoryCountersEx2 {
             cb: std::mem::size_of::<MemoryCountersEx2>() as u32,

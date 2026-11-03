@@ -61,7 +61,7 @@ export const METRIC_LABEL: Record<Metric, string> = {
   threads: "Threads",
   gdi: "GDI objects",
   userObjects: "USER objects",
-  nonpagedPool: "Non-paged pool",
+  nonpagedPool: "Kernel memory",
 };
 
 export const CATEGORY_LABEL: Record<Category, string> = {
@@ -81,7 +81,7 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   browser: "Browser",
   app: "App",
   service: "Service",
-  system: "Windows",
+  system: "System",
   other: "Unreadable",
 };
 

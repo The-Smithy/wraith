@@ -33,10 +33,12 @@ export function descendants(root: ProcessInfo, all: ProcessInfo[]): ProcessInfo[
 
 export function KillDialog(props: {
   request: KillRequest;
+  platform: string;
   onClose: () => void;
   onDone: (message: string) => void;
 }) {
-  const { request, onClose, onDone } = props;
+  const { request, platform, onClose, onDone } = props;
+  const how = platform === "linux" ? "Asks it to quit, then forces it after 3 seconds" : "Stops immediately, with no chance to save";
   const [busy, setBusy] = useState(false);
   const { affected } = request;
   const total = affected.reduce((sum, p) => sum + p.private, 0);
@@ -84,7 +86,7 @@ export function KillDialog(props: {
             {single ? `End ${shortRole(single)}?` : `End ${n} processes?`}
           </h2>
           <div class="text-ink-3 text-xs mt-0.5">
-            {single ? `${single.appLabel} · ` : ""}Frees about {bytes(total)} · Stops immediately, with no chance to save
+            {single ? `${single.appLabel} · ` : ""}Frees about {bytes(total)} · {how}
           </div>
         </div>
         {single ? (

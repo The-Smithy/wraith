@@ -1,8 +1,8 @@
 # Wraith
 
-A Windows desktop monitor for every process on your PC, built for web developers. It shows what each process really is, what it is tied to, and whether it is leaking.
+A desktop monitor for every process on your PC, built for web developers. It shows what each process really is, what it is tied to, and whether it is leaking.
 
-Built with Tauri 2, Rust, Preact and Tailwind CSS v4. Windows only.
+Built with Tauri 2, Rust, Preact and Tailwind CSS v4. Runs on Windows and Linux.
 
 ## What it does
 
@@ -34,6 +34,20 @@ npm run app:build
 Release builds require administrator, so Windows shows a UAC prompt at launch. That lets Wraith read every process it is allowed to. Development builds (`npm run app:dev`) run without admin so they can start from a normal terminal, and elevated processes show a dash for memory, handles and uptime there.
 
 Windows components, including service hosts like `svchost.exe`, are always protected from being ended. Third party services can be ended, with a warning.
+
+## Linux
+
+Linux support is new. It's tested in CI on a virtual desktop, but hasn't had real desktop use yet, so please report anything that looks wrong.
+
+A few things work differently from Windows:
+
+- **Permissions:** Wraith runs as your user. It shows memory for every process, but handles and ending are limited to your own, and other users' processes show `Access denied`.
+- **Ending a process:** it asks the process to quit first, and forces it after 3 seconds if needed.
+- **Windows on Wayland:** Wayland doesn't let an app see other apps' windows, so window-based features are limited. Wraith says so instead of guessing. X11 and XWayland apps are detected normally.
+- **Publishers:** Linux executables don't record one, so app names come from `.desktop` files.
+- **GDI and USER objects:** these only exist on Windows, so they aren't tracked.
+
+To build on Linux you need the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/#linux).
 
 ## How leak detection works
 

@@ -1,6 +1,6 @@
 # Contributing to Wraith
 
-Wraith is a Windows process and memory leak monitor built with Tauri 2, Rust, Preact and Tailwind CSS v4. Contributions from people and AI agents are welcome. Agents must also follow [AGENTS.md](AGENTS.md).
+Wraith is a process and memory leak monitor for Windows and Linux, built with Tauri 2, Rust, Preact and Tailwind CSS v4. Contributions from people and AI agents are welcome. Agents must also follow [AGENTS.md](AGENTS.md).
 
 ## How changes get merged
 
@@ -16,7 +16,10 @@ Keep each pull request to one change. A bug fix and a refactor are two pull requ
 
 ## Setup
 
-You need Windows 10 22H2 or later, Node 24, the Rust stable MSVC toolchain, Visual Studio Build Tools and WebView2.
+You need Node 24 and stable Rust, plus:
+
+- **Windows:** Windows 10 22H2 or later, Visual Studio Build Tools and WebView2
+- **Linux:** the [Tauri system packages](https://v2.tauri.app/start/prerequisites/#linux)
 
 ```bash
 npm install
@@ -26,7 +29,7 @@ npm install
 npm run app:dev
 ```
 
-Dev builds run without administrator rights. Release builds require them, so `npm run app:build` produces an app that shows a UAC prompt at launch.
+Dev builds run without administrator rights. On Windows, release builds require them, so `npm run app:build` produces an app that shows a UAC prompt at launch. Linux builds always run as your user.
 
 If the build fails with `LNK1104`, your project path is too long for Windows. Move the project somewhere shorter, like `C:\Development\wraith`.
 
@@ -70,6 +73,7 @@ node scripts/leak-test.mjs 1 480
 | --- | --- | --- |
 | How a process is identified | `src-tauri/src/classify.rs` | the same file |
 | Which app or project it's tied to | `src-tauri/src/relate.rs` | the same file |
+| What the OS reports | `src-tauri/src/platform/` | the same folder. Linux text parsing goes in `procfs.rs`, whose tests run on every OS |
 | Leak detection | `src-tauri/src/leaks.rs` | the same file |
 | Cleanup suggestions | `src-tauri/src/insights.rs` | the same file |
 | What ending a process does | `src/impact.ts` | `src/impact.test.ts` |
@@ -93,6 +97,10 @@ Types shared with the UI live in `src-tauri/src/model.rs` and must be mirrored i
 - Status colors always come with an icon and a label.
 - Use the color tokens in `src/styles.css`, and check both the light and dark themes.
 - Charts use one axis each, a legend when there are two or more series, and a hover readout.
+
+## Keeping both platforms working
+
+CI runs every check on Windows and Linux, and runs the real app on a virtual Linux desktop. If you can only test on one OS, say which in your pull request. Don't assume Windows concepts in shared code: if something only exists on one OS, the other should show a dash or hide it, not a false value.
 
 ## Don't publish your machine's data
 

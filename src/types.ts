@@ -20,7 +20,7 @@ export type Category =
   | "system"
   | "other";
 
-export type Presence = "window" | "service" | "child" | "background";
+export type Presence = "window" | "service" | "child" | "background" | "unknown";
 
 export interface Project {
   name: string;
@@ -49,6 +49,7 @@ export interface ProcessInfo {
   windowTitle: string | null;
   presence: Presence;
   limited: boolean;
+  memoryKnown: boolean;
   private: number;
   workingSet: number;
   privateWs: number;
@@ -128,6 +129,8 @@ export interface SystemInfo {
   limitedProcesses: number;
   elevated: boolean;
   hostName: string;
+  platform: string;
+  windowsKnown: boolean;
 }
 
 export type Metric = "memory" | "handles" | "threads" | "gdi" | "userObjects" | "nonpagedPool";

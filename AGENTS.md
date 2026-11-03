@@ -51,8 +51,8 @@ Don't refactor without a reason, rename things for taste, add abstractions for o
 
 These exist because each one prevents real damage:
 
-- **Protected processes.** `protected` in `src-tauri/src/relate.rs` is decided from what a process really is, before it's relabelled. `kill_process` refuses protected processes. Wraith runs as administrator, so Windows won't stop it.
-- **Identity before ending.** `still_same_process` confirms the PID hasn't been reused. Windows reuses PIDs, so never act on a PID alone.
+- **Protected processes.** `protected` in `src-tauri/src/relate.rs` is decided from what a process really is, before it's relabelled. `kill_process` refuses protected processes. Wraith runs as administrator on Windows, and can run as root on Linux, so the OS won't stop it.
+- **Identity before ending.** `still_same_process` confirms the PID hasn't been reused. Every OS reuses PIDs, so never act on a PID alone.
 - **Wraith can't end itself.** Its process tree includes the WebView2 showing the UI.
 - **A person always confirms** before anything is ended. Never end a process automatically.
 - **Honest claims.** Say "Restarts itself" only for things known to restart. Show a dash for anything unknown. Call a leak "suspected" or "possible", never certain.
@@ -64,6 +64,14 @@ These exist because each one prevents real damage:
 - **Trusting parent PIDs.** A parent only counts if it started first. See `relate`.
 - **Fake numbers.** A missing start time once showed as 20,759 days, and later as "37s". Unknown means a dash.
 - **Unbounded history.** Every series must stay bounded. Use `Series` in `history.rs`.
+
+## Working across platforms
+
+- All OS calls live in `src-tauri/src/platform/`, with each OS supplying the same functions. Don't add `cfg` checks elsewhere unless there's no other way.
+- Don't let shared code assume Windows. A number or label that only makes sense on one OS must be hidden or show a dash on the others.
+- On Linux, no window found proves nothing under Wayland. Check `windows_known` before claiming something has no window.
+- On Linux, `proc_stats` and `tcp_state` read many files on each tick, so watch the performance budget there especially.
+- You may only be able to run one OS. CI covers Windows and a virtual Linux desktop. Say what you couldn't run.
 
 ## Performance budget
 

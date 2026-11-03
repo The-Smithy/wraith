@@ -8,8 +8,18 @@ mod windows;
 #[cfg(windows)]
 pub use windows::*;
 
-#[cfg(not(windows))]
-compile_error!("Wraith only supports Windows so far.");
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "linux")]
+pub use linux::*;
+
+// Pure text parsing, so its tests run on every platform.
+#[cfg(any(target_os = "linux", test))]
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+mod procfs;
+
+#[cfg(not(any(windows, target_os = "linux")))]
+compile_error!("Wraith supports Windows and Linux so far.");
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ProcStats {
@@ -19,6 +29,8 @@ pub struct ProcStats {
     pub handles: u32,
     pub gdi: u32,
     pub user_objects: u32,
+    /// False when memory is known but handles aren't and the process can't be ended.
+    pub accessible: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
