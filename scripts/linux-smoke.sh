@@ -58,6 +58,8 @@ check("sees many processes", s.processes.length > 20, `${s.processes.length}`);
 check("no thread entries", new Set(s.processes.map((p) => p.pid)).size === s.processes.length);
 check("memory figures are readable", s.system.totalMemory > 0 && s.system.kernelNonpaged > 0);
 check("commit limit is not a false alarm", !s.insights.some((i) => i.id === "pressure:commit"));
+const noMemory = s.processes.filter((p) => !p.memoryKnown).length;
+check("only calls a process unreadable if its memory is unknown", s.system.limitedProcesses === noMemory, `${s.system.limitedProcesses} of ${s.processes.length}`);
 
 const web = byPid(server);
 check("finds the test server", Boolean(web));

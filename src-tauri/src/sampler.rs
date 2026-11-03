@@ -329,7 +329,8 @@ impl Sampler {
             thread_count: perf.thread_count,
             handle_count: perf.handle_count,
             uptime_secs: System::uptime().unwrap_or(0),
-            limited_processes: raws.iter().filter(|r| r.limited).count() as u32,
+            // Not `limited`, which on Linux only means its open files can't be listed.
+            limited_processes: raws.iter().filter(|r| !r.memory_known).count() as u32,
             elevated: self.elevated,
             host_name: System::host_name().unwrap_or_default(),
             platform: platform::PLATFORM.to_string(),

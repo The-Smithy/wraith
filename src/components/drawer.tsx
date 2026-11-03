@@ -139,7 +139,7 @@ export function Drawer(props: {
           <Chip tone="accent">{CATEGORY_LABEL[p.category]}</Chip>
           <Chip>{PRESENCE[p.presence]}</Chip>
           {parentExitMatters(p) && <Chip tone="warn">Orphaned</Chip>}
-          {p.limited && <Chip tone="warn">Numbers unavailable</Chip>}
+          {!p.memoryKnown && <Chip tone="warn">Numbers unavailable</Chip>}
         </div>
       </header>
 
