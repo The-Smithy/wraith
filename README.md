@@ -87,3 +87,7 @@ npm test
 ```bash
 cargo test --manifest-path src-tauri/Cargo.toml --lib
 ```
+
+## License
+
+[MIT](LICENSE)

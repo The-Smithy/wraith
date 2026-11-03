@@ -3,6 +3,7 @@ name = "wraith"
 version = "0.1.0"
 description = "Windows process, dev tooling and memory leak monitor"
 edition = "2021"
+license = "MIT"
 default-run = "wraith"
 
 [lib]
