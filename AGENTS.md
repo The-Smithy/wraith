@@ -80,6 +80,7 @@ Measure before and after any change to the sampler, and report both in the pull 
 Unit tests aren't enough for anything that touches real processes. To drive the real app, start it with `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333` and a throwaway `WRAITH_DATA_DIR`, then connect over the Chrome DevTools Protocol to click through screens, take screenshots and read console errors.
 
 - Use a debug build for this. Release builds require elevation, which needs a person at the UAC prompt, and a normal process can't then stop them.
+- Debug builds can run alongside the maintainer's installed copy. Set `WEBVIEW2_USER_DATA_FOLDER` to a throwaway folder too, since WebView2 can't share one with an elevated copy. Never stop their copy.
 - Only end processes you started yourself for the test. Never click through a real confirmation against someone's running work.
 - Stop anything you started when you finish.
 - Look at the screenshots. Check real rows for wrong labels, not just that the page rendered.

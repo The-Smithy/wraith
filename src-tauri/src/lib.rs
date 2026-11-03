@@ -336,8 +336,12 @@ pub fn run() {
         quitting: AtomicBool::new(false),
     });
 
-    tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| show_main(app)))
+    let builder = tauri::Builder::default();
+    // Debug builds can run alongside an installed copy, so development isn't blocked by it.
+    #[cfg(not(debug_assertions))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| show_main(app)));
+
+    builder
         .plugin(tauri_plugin_notification::init())
         .manage(shared.clone())
         .invoke_handler(tauri::generate_handler![
