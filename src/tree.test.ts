@@ -26,6 +26,7 @@ function proc(key: string, over: Partial<ProcessInfo> = {}): ProcessInfo {
     windowTitle: null,
     presence: "child",
     limited: false,
+    memoryKnown: true,
     private: 100,
     workingSet: 50,
     privateWs: 50,

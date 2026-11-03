@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 
+use crate::classify::is_shell_role;
 use crate::model::{Category, ExitedInfo, Insight, PortInfo, Presence, ProcessInfo, Severity, SystemInfo};
 
 const MB: u64 = 1024 * 1024;
@@ -130,7 +131,7 @@ fn orphans(input: &Input, out: &mut Vec<Insight>) {
     let under_detached_shell = |p: &ProcessInfo| {
         p.app_key != p.key
             && by_key.get(p.app_key.as_str()).is_some_and(|root| {
-                root.category == Category::Terminal && root.parent_gone && root.presence != Presence::Window
+                is_shell_role(&root.role) && root.parent_gone && root.presence != Presence::Window
             })
     };
     let list: Vec<&ProcessInfo> = input
@@ -139,6 +140,7 @@ fn orphans(input: &Input, out: &mut Vec<Insight>) {
         .filter(|p| {
             (p.parent_gone || under_detached_shell(p))
                 && p.presence != Presence::Window
+                && p.services.is_empty()
                 && matches!(
                     p.category,
                     Category::DevServer | Category::BuildTool | Category::TestRunner | Category::LanguageServer
@@ -197,6 +199,10 @@ fn duplicate_servers(input: &Input, out: &mut Vec<Insight>) {
 }
 
 fn heavy_background(input: &Input, out: &mut Vec<Insight>) {
+    // This rule is about having no window, which can't be known everywhere.
+    if !input.system.windows_known {
+        return;
+    }
     let mut groups: HashMap<&str, Vec<&ProcessInfo>> = HashMap::new();
     for p in input.processes {
         let independent = matches!(p.presence, Presence::Background | Presence::Service | Presence::Child);
@@ -377,6 +383,7 @@ mod tests {
             window_title: None,
             presence: Presence::Child,
             limited: false,
+            memory_known: true,
             private,
             working_set: private,
             private_ws: private,
@@ -399,6 +406,7 @@ mod tests {
             available_memory: 22 * GB,
             commit_total: 10 * GB,
             commit_limit: 40 * GB,
+            windows_known: true,
             ..Default::default()
         };
         evaluate(&Input {
@@ -457,6 +465,40 @@ mod tests {
         let out = run(&[shell, server], &HashMap::new(), &[]);
         let orphans = out.iter().find(|i| i.id == "orphans").unwrap();
         assert_eq!(orphans.keys, vec!["n".to_string()]);
+    }
+
+    #[test]
+    fn tmux_is_not_a_forgotten_shell() {
+        let mut tmux = process("t", Category::Terminal, "Terminal multiplexer", 5 * MB);
+        tmux.parent_gone = true;
+        tmux.presence = Presence::Background;
+        let mut server = process("n", Category::DevServer, "Vite", 300 * MB);
+        server.app_key = "t".into();
+        assert!(!run(&[tmux, server], &HashMap::new(), &[]).iter().any(|i| i.id == "orphans"));
+    }
+
+    #[test]
+    fn services_are_not_forgotten_processes() {
+        let mut server = process("s", Category::Runtime, "Node.js script", 300 * MB);
+        server.parent_gone = true;
+        server.services = vec!["my-api".into()];
+        assert!(!run(&[server], &HashMap::new(), &[]).iter().any(|i| i.id == "orphans"));
+    }
+
+    #[test]
+    fn no_window_advice_needs_window_detection() {
+        let heavy = process("h", Category::App, "Application", 2 * GB);
+        let system = SystemInfo { total_memory: 32 * GB, used_memory: GB, windows_known: false, ..Default::default() };
+        let out = evaluate(&Input {
+            now: 0,
+            system: &system,
+            processes: std::slice::from_ref(&heavy),
+            ports: &[],
+            exited: &[],
+            idle: &HashMap::new(),
+            pressure_pct: 90,
+        });
+        assert!(!out.iter().any(|i| i.id.starts_with("heavy")));
     }
 
     #[test]

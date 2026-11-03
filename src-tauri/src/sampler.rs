@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind, Users};
+use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, ThreadKind, UpdateKind, Users};
 
 use crate::classify::classify;
 use crate::history::{metric_points, Bucket, History, ProcHist, SysBucket};
@@ -130,6 +130,7 @@ impl Sampler {
         let tcp = platform::tcp_state();
         let mut ctx = Context {
             windows: platform::visible_windows(),
+            windows_unknown: !platform::windows_fully_known(),
             connections: tcp.connections_by_pid.clone(),
             ..Default::default()
         };
@@ -225,6 +226,10 @@ impl Sampler {
         let mut out = Vec::with_capacity(self.sys.processes().len());
         let mut seen = HashSet::with_capacity(self.sys.processes().len());
         for (pid, p) in self.sys.processes() {
+            // Linux can list each thread as its own entry. They aren't processes.
+            if matches!(p.thread_kind(), Some(ThreadKind::Userland)) {
+                continue;
+            }
             let pid_num = pid.as_u32();
             // Without this, the epoch would read as decades of uptime, and the key
             // would change if a real start time ever showed up.
@@ -297,7 +302,8 @@ impl Sampler {
                 threads: threads.get(&pid_num).copied().unwrap_or(0),
                 gdi: stats.map_or(0, |s| s.gdi),
                 user_objects: stats.map_or(0, |s| s.user_objects),
-                limited: stats.is_none(),
+                limited: !stats.is_some_and(|s| s.accessible),
+                memory_known: stats.is_some(),
             });
         }
         self.metas.retain(|k, _| seen.contains(k));
@@ -323,9 +329,12 @@ impl Sampler {
             thread_count: perf.thread_count,
             handle_count: perf.handle_count,
             uptime_secs: System::uptime().unwrap_or(0),
-            limited_processes: raws.iter().filter(|r| r.limited).count() as u32,
+            // Not `limited`, which on Linux only means its open files can't be listed.
+            limited_processes: raws.iter().filter(|r| !r.memory_known).count() as u32,
             elevated: self.elevated,
             host_name: System::host_name().unwrap_or_default(),
+            platform: platform::PLATFORM.to_string(),
+            windows_known: platform::windows_fully_known(),
         }
     }
 
@@ -553,9 +562,9 @@ impl Sampler {
                 "system:nonpaged".into(),
                 SubjectKind::System,
                 None,
-                "Kernel non-paged pool".into(),
+                platform::KERNEL_POOL_NAME.into(),
                 "Usually a driver".into(),
-                "Windows".into(),
+                platform::SYSTEM_APP_LABEL.into(),
                 None,
                 Metric::NonpagedPool,
                 trend,

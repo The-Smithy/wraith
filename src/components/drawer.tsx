@@ -14,6 +14,7 @@ const PRESENCE: Record<ProcessInfo["presence"], string> = {
   service: "Windows service",
   child: "Runs inside an app",
   background: "Independent",
+  unknown: "Window unknown",
 };
 
 type Range = "fine" | "lifetime";
@@ -80,12 +81,13 @@ export function Drawer(props: {
   byKey: ReadonlyMap<string, ProcessInfo>;
   now: number;
   seq: number;
+  platform: string;
   onClose: () => void;
   onSelect: (key: string) => void;
   onKill: (tree: boolean) => void;
   onToast: (message: string) => void;
 }) {
-  const { process: p, all, byKey, now, seq, onClose, onSelect, onKill, onToast } = props;
+  const { process: p, all, byKey, now, seq, platform, onClose, onSelect, onKill, onToast } = props;
   const [detail, setDetail] = useState<ProcessDetail | null>(null);
   const [history, setHistory] = useState<ProcessHistory | null>(null);
   const [range, setRange] = useState<Range>("fine");
@@ -117,6 +119,8 @@ export function Drawer(props: {
   const impact = endImpact(p, childCounts(all).get(p.key) ?? 0);
   const copied = () => onToast("Copied");
   const canEnd = impact.risk !== "blocked";
+  const isWindows = platform === "windows";
+  const memory = (value: number) => (p.memoryKnown ? bytes(value) : "—");
   const parents = chain.slice(0, -1);
 
   return (
@@ -135,7 +139,7 @@ export function Drawer(props: {
           <Chip tone="accent">{CATEGORY_LABEL[p.category]}</Chip>
           <Chip>{PRESENCE[p.presence]}</Chip>
           {parentExitMatters(p) && <Chip tone="warn">Orphaned</Chip>}
-          {p.limited && <Chip tone="warn">Numbers unavailable</Chip>}
+          {!p.memoryKnown && <Chip tone="warn">Numbers unavailable</Chip>}
         </div>
       </header>
 
@@ -204,13 +208,17 @@ export function Drawer(props: {
         {tab === "stats" && (
           <div class="px-4 py-3">
             <div class="grid grid-cols-4 gap-x-3 gap-y-2.5">
-              <Fact label="Private" value={p.limited ? "—" : bytes(p.private)} title="Memory committed to this process alone" />
-              <Fact label="Working set" value={p.limited ? "—" : bytes(p.workingSet)} title="Physical memory in use, including shared pages" />
-              <Fact label="Task Mgr" value={p.limited ? "—" : bytes(p.privateWs)} title="Private working set, the Memory column in Task Manager" />
+              <Fact label="Private" value={memory(p.private)} title="Memory belonging to this process alone" />
+              <Fact label={isWindows ? "Working set" : "Resident"} value={memory(p.workingSet)} title="Physical memory in use, including shared pages" />
+              {isWindows ? (
+                <Fact label="Task Mgr" value={memory(p.privateWs)} title="Private working set, the Memory column in Task Manager" />
+              ) : (
+                <Fact label="In RAM" value={memory(p.privateWs)} title="The part of its private memory in RAM, not swapped out" />
+              )}
               <Fact label="CPU" value={`${cpu(p.cpu)}%`} />
               <Fact label="Handles" value={p.limited ? "—" : count(p.handles)} />
               <Fact label="Threads" value={count(p.threads)} />
-              <Fact label="GDI / USER" value={p.limited ? "—" : `${p.gdi} / ${p.userObjects}`} />
+              {isWindows && <Fact label="GDI / USER" value={p.limited ? "—" : `${p.gdi} / ${p.userObjects}`} />}
               <Fact label="Uptime" value={p.startKnown ? duration(now - p.startTime) : "—"} />
               <Fact label="Disk read" value={rate(p.readRate)} />
               <Fact label="Disk write" value={rate(p.writeRate)} />
@@ -236,7 +244,7 @@ export function Drawer(props: {
               format={bytes}
               series={[
                 { name: "Private", color: "var(--series-1)", points: points(buckets, (b) => b.p * 1024) },
-                { name: "Working set", color: "var(--series-2)", points: points(buckets, (b) => b.w * 1024) },
+                { name: isWindows ? "Working set" : "Resident", color: "var(--series-2)", points: points(buckets, (b) => b.w * 1024) },
               ]}
             />
             <div class="grid grid-cols-2 gap-3 mt-2">
@@ -249,9 +257,11 @@ export function Drawer(props: {
               <SmallChart title="CPU %">
                 <LineChart height={90} format={(v) => `${v < 10 ? v.toFixed(1) : Math.round(v)}%`} series={[{ name: "CPU", color: "var(--series-1)", points: points(buckets, (b) => b.c) }]} />
               </SmallChart>
-              <SmallChart title="GDI objects">
-                <LineChart height={90} minMax={2} format={count} series={[{ name: "GDI objects", color: "var(--series-1)", points: points(buckets, (b) => b.g) }]} />
-              </SmallChart>
+              {isWindows && (
+                <SmallChart title="GDI objects">
+                  <LineChart height={90} minMax={2} format={count} series={[{ name: "GDI objects", color: "var(--series-1)", points: points(buckets, (b) => b.g) }]} />
+                </SmallChart>
+              )}
             </div>
           </div>
         )}

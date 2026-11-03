@@ -21,34 +21,51 @@ fn class(category: Category, role: &str, tech: Option<&str>) -> Class {
     }
 }
 
+// Names without .exe, so one table serves every OS.
 const EDITORS: &[(&str, &str)] = &[
-    ("code.exe", "VS Code"),
-    ("code - insiders.exe", "VS Code Insiders"),
-    ("cursor.exe", "Cursor"),
-    ("windsurf.exe", "Windsurf"),
-    ("zed.exe", "Zed"),
-    ("devenv.exe", "Visual Studio"),
-    ("rider64.exe", "Rider"),
-    ("webstorm64.exe", "WebStorm"),
-    ("idea64.exe", "IntelliJ IDEA"),
-    ("pycharm64.exe", "PyCharm"),
-    ("phpstorm64.exe", "PhpStorm"),
-    ("goland64.exe", "GoLand"),
-    ("sublime_text.exe", "Sublime Text"),
-    ("notepad++.exe", "Notepad++"),
-    ("nvim.exe", "Neovim"),
-    ("unrealeditor.exe", "Unreal Editor"),
-    ("godot.exe", "Godot"),
+    ("code", "VS Code"),
+    ("code - insiders", "VS Code Insiders"),
+    ("code-insiders", "VS Code Insiders"),
+    ("cursor", "Cursor"),
+    ("windsurf", "Windsurf"),
+    ("zed", "Zed"),
+    ("zeditor", "Zed"),
+    ("devenv", "Visual Studio"),
+    ("rider64", "Rider"),
+    ("rider", "Rider"),
+    ("webstorm64", "WebStorm"),
+    ("webstorm", "WebStorm"),
+    ("idea64", "IntelliJ IDEA"),
+    ("idea", "IntelliJ IDEA"),
+    ("pycharm64", "PyCharm"),
+    ("pycharm", "PyCharm"),
+    ("phpstorm64", "PhpStorm"),
+    ("phpstorm", "PhpStorm"),
+    ("goland64", "GoLand"),
+    ("goland", "GoLand"),
+    ("sublime_text", "Sublime Text"),
+    ("notepad++", "Notepad++"),
+    ("nvim", "Neovim"),
+    ("vim", "Vim"),
+    ("emacs", "Emacs"),
+    ("hx", "Helix"),
+    ("unrealeditor", "Unreal Editor"),
+    ("godot", "Godot"),
 ];
 
 const BROWSERS: &[(&str, &str)] = &[
-    ("chrome.exe", "Chrome"),
-    ("msedge.exe", "Edge"),
-    ("brave.exe", "Brave"),
-    ("firefox.exe", "Firefox"),
-    ("opera.exe", "Opera"),
-    ("vivaldi.exe", "Vivaldi"),
-    ("arc.exe", "Arc"),
+    ("chrome", "Chrome"),
+    ("chromium", "Chromium"),
+    ("chromium-browser", "Chromium"),
+    ("msedge", "Edge"),
+    ("brave", "Brave"),
+    ("firefox", "Firefox"),
+    ("firefox-bin", "Firefox"),
+    ("firefox-esr", "Firefox"),
+    ("opera", "Opera"),
+    ("vivaldi", "Vivaldi"),
+    ("vivaldi-bin", "Vivaldi"),
+    ("arc", "Arc"),
 ];
 
 const NATIVE_LSP: &[(&str, &str)] = &[
@@ -85,6 +102,8 @@ const NATIVE_DEV: &[(&str, Category, &str, &str)] = &[
     ("wslservice", Category::Container, "WSL service", "WSL"),
     ("podman", Category::Container, "Podman", "Podman"),
     ("kubectl", Category::Container, "kubectl", "Kubernetes"),
+    ("containerd", Category::Container, "containerd runtime", "Docker"),
+    ("containerd-shim-runc-v2", Category::Container, "Container shim", "Docker"),
     ("nginx", Category::DevServer, "nginx server", "nginx"),
     ("caddy", Category::DevServer, "Caddy server", "Caddy"),
     ("httpd", Category::DevServer, "Apache server", "Apache"),
@@ -92,11 +111,15 @@ const NATIVE_DEV: &[(&str, Category, &str, &str)] = &[
     ("cloudflared", Category::DevServer, "Cloudflare tunnel", "Cloudflare"),
     ("php", Category::Runtime, "PHP process", "PHP"),
     ("php-cgi", Category::Runtime, "PHP FastCGI worker", "PHP"),
+    ("php-fpm", Category::Runtime, "PHP FastCGI worker", "PHP"),
     ("ruby", Category::Runtime, "Ruby process", "Ruby"),
     ("java", Category::Runtime, "Java process", "Java"),
     ("javaw", Category::Runtime, "Java process", "Java"),
     ("dotnet", Category::Runtime, ".NET process", ".NET"),
     ("esbuild", Category::BuildTool, "esbuild service", "esbuild"),
+    ("make", Category::BuildTool, "Make", "C++"),
+    ("gcc", Category::BuildTool, "GCC compiler", "C++"),
+    ("clang", Category::BuildTool, "Clang compiler", "C++"),
     ("cargo", Category::BuildTool, "Cargo", "Rust"),
     ("rustc", Category::BuildTool, "Rust compiler", "Rust"),
     ("msbuild", Category::BuildTool, "MSBuild", ".NET"),
@@ -118,7 +141,40 @@ const NATIVE_DEV: &[(&str, Category, &str, &str)] = &[
     ("sh", Category::Terminal, "Shell", ""),
     ("wezterm-gui", Category::Terminal, "WezTerm", ""),
     ("alacritty", Category::Terminal, "Alacritty", ""),
+    ("zsh", Category::Terminal, "Zsh", ""),
+    ("fish", Category::Terminal, "Fish", ""),
+    ("dash", Category::Terminal, "Dash", ""),
+    ("tmux: server", Category::Terminal, "Terminal multiplexer", ""),
+    ("tmux", Category::Terminal, "Terminal multiplexer", ""),
+    ("screen", Category::Terminal, "Terminal multiplexer", ""),
+    ("gnome-terminal-server", Category::Terminal, "GNOME Terminal", ""),
+    ("ptyxis", Category::Terminal, "Ptyxis", ""),
+    ("konsole", Category::Terminal, "Konsole", ""),
+    ("xterm", Category::Terminal, "xterm", ""),
+    ("kitty", Category::Terminal, "kitty", ""),
+    ("foot", Category::Terminal, "foot", ""),
+    ("tilix", Category::Terminal, "Tilix", ""),
+    ("terminator", Category::Terminal, "Terminator", ""),
+    ("xfce4-terminal", Category::Terminal, "Xfce Terminal", ""),
 ];
+
+/// Plain shells, as opposed to terminal windows and tmux, which outlive their launcher on purpose.
+pub fn is_shell_role(role: &str) -> bool {
+    matches!(role, "PowerShell" | "Command Prompt" | "Bash" | "Shell" | "Zsh" | "Fish" | "Dash")
+}
+
+/// Services and desktop plumbing on Linux. Ending these can log someone out.
+const LINUX_SYSTEM_NAMES: &[&str] = &[
+    "init", "kthreadd", "dbus-daemon", "dbus-broker", "dbus-broker-launch", "polkitd", "udisksd", "networkmanager",
+    "pipewire", "pipewire-pulse", "wireplumber", "pulseaudio", "xorg", "xwayland", "gnome-shell", "plasmashell",
+    "kwin_wayland", "kwin_x11", "mutter", "sway", "hyprland", "sddm", "gdm", "gdm3", "lightdm", "login", "agetty",
+    "cron", "crond", "rsyslogd", "irqbalance", "snapd", "multipathd", "accounts-daemon", "upowerd", "modemmanager",
+    "avahi-daemon", "bluetoothd", "sshd", "wpa_supplicant", "thermald", "auditd", "(sd-pam)",
+];
+
+const LINUX_SYSTEM_PREFIXES: &[&str] = &["systemd", "gsd-", "gvfs", "ibus-", "xdg-", "at-spi", "gnome-session"];
+
+const LINUX_SYSTEM_FOLDERS: &[&str] = &["/usr/lib/systemd/", "/lib/systemd/", "/usr/libexec/", "/usr/lib/polkit"];
 
 const SYSTEM_NAMES: &[&str] = &[
     "system", "registry", "smss", "csrss", "wininit", "winlogon", "services", "lsass", "svchost",
@@ -407,6 +463,8 @@ pub fn classify(name: &str, exe: &str, args: &[String]) -> Class {
     let name_lower = name.to_lowercase();
     let stem_name = stem(&name_lower);
     let exe_lower = normal(exe);
+    let exe_stem = stem(base_name(&exe_lower));
+    let named = |n: &str| n == stem_name || n == exe_stem;
 
     // Native tools bundled inside an editor extension folder.
     if let Some(ext) = extension_id(&exe_lower) {
@@ -431,7 +489,7 @@ pub fn classify(name: &str, exe: &str, args: &[String]) -> Class {
         return class(Category::AiAgent, "Claude Code session", Some("Claude"));
     }
 
-    if let Some((_, editor)) = EDITORS.iter().find(|(n, _)| *n == name_lower) {
+    if let Some((_, editor)) = EDITORS.iter().find(|(n, _)| named(n)) {
         if flag_value(args, "--type").is_some() {
             let mut role = chromium_role(args, "Window or webview").unwrap_or_default();
             // VS Code only opens an inspector port on extension hosts.
@@ -454,13 +512,35 @@ pub fn classify(name: &str, exe: &str, args: &[String]) -> Class {
         return class(Category::Editor, &format!("{editor}: Main process"), Some(editor));
     }
 
-    if let Some((_, browser)) = BROWSERS.iter().find(|(n, _)| *n == name_lower) {
-        let role = chromium_role(args, "Tab or extension").unwrap_or_else(|| "Main process".into());
+    if let Some((_, browser)) = BROWSERS.iter().find(|(n, _)| named(n)) {
+        // Firefox names its children differently from Chromium.
+        let role = if has_arg(args, "-contentproc") {
+            if has_arg(args, "-isForBrowser") { "Tab or extension".to_string() } else { "Utility process".to_string() }
+        } else {
+            chromium_role(args, "Tab or extension").unwrap_or_else(|| "Main process".into())
+        };
         return class(Category::Browser, &format!("{browser}: {role}"), Some(browser));
+    }
+    let webkit_role = match exe_stem {
+        "webkitwebprocess" => Some("WebKit: Web content"),
+        "webkitnetworkprocess" => Some("WebKit: Network process"),
+        "webkitgpuprocess" => Some("WebKit: GPU process"),
+        _ => None,
+    };
+    if let Some(role) = webkit_role {
+        return class(Category::Browser, role, Some("WebKit"));
     }
     if stem_name == "msedgewebview2" {
         let role = chromium_role(args, "Web content").unwrap_or_else(|| "Main process".into());
         return class(Category::Browser, &format!("WebView2: {role}"), Some("WebView2"));
+    }
+
+    // Node tools on Linux can rewrite their process title, which hides the script.
+    if stem_name.starts_with("next-server") {
+        return class(Category::DevServer, "Next.js server", Some("Next.js"));
+    }
+    if stem_name == "npm" || stem_name.starts_with("npm ") {
+        return class(Category::PackageManager, "npm", Some("npm"));
     }
 
     if matches!(stem_name, "node" | "bun" | "deno") {
@@ -499,8 +579,11 @@ pub fn classify(name: &str, exe: &str, args: &[String]) -> Class {
 
     // Driver packages install under Windows but belong to their vendor.
     let in_windows = exe_lower.starts_with("c:/windows/") && !exe_lower.contains("/driverstore/");
-    if SYSTEM_NAMES.contains(&stem_name) || in_windows {
-        return class(Category::System, "Windows component", None);
+    let linux_system = LINUX_SYSTEM_NAMES.contains(&stem_name)
+        || LINUX_SYSTEM_PREFIXES.iter().any(|p| stem_name.starts_with(p))
+        || LINUX_SYSTEM_FOLDERS.iter().any(|f| exe_lower.starts_with(f));
+    if SYSTEM_NAMES.contains(&stem_name) || in_windows || linux_system {
+        return class(Category::System, crate::platform::SYSTEM_ROLE, None);
     }
 
     // Any other Electron or Chromium based app still reports its child type.
@@ -509,6 +592,10 @@ pub fn classify(name: &str, exe: &str, args: &[String]) -> Class {
     }
 
     if exe.is_empty() {
+        // Only kernel threads have no executable and no command line on Linux.
+        if cfg!(target_os = "linux") && args.is_empty() {
+            return class(Category::System, "Kernel thread", None);
+        }
         return class(Category::Other, "Process details not readable", None);
     }
     class(Category::App, "Application", None)
@@ -583,7 +670,7 @@ mod tests {
 
     #[test]
     fn opening_a_folder_is_not_mistaken_for_a_script() {
-        let c = classify("Code.exe", CODE, &args(&[CODE, r"C:\Projects\hearth"]));
+        let c = classify("Code.exe", CODE, &args(&[CODE, r"C:\Projects\my-app"]));
         assert_eq!(c.role, "VS Code: Main process");
     }
 
@@ -632,7 +719,7 @@ mod tests {
     fn system_and_unknown() {
         assert_eq!(classify("svchost.exe", r"C:\Windows\System32\svchost.exe", &[]).category, Category::System);
         assert_eq!(classify("csrss.exe", "", &[]).category, Category::System);
-        assert_eq!(classify("mystery.exe", "", &[]).category, Category::Other);
+        assert_eq!(classify("mystery.exe", "", &args(&["mystery.exe"])).category, Category::Other);
         assert_eq!(classify("Melvor2.exe", r"D:\Games\Melvor2.exe", &[]).category, Category::App);
     }
 
@@ -641,6 +728,66 @@ mod tests {
         let nvidia = r"C:\Windows\System32\DriverStore\FileRepository\nv\NVDisplay.Container.exe";
         assert_eq!(classify("NVDisplay.Container.exe", nvidia, &[]).category, Category::App);
         assert_eq!(classify("dasHost.exe", r"C:\Windows\System32\dasHost.exe", &[]).category, Category::System);
+    }
+
+    #[test]
+    fn linux_editors_and_servers_are_recognised() {
+        let code = "/usr/share/code/code";
+        assert_eq!(classify("code", code, &args(&[code])).role, "VS Code: Main process");
+        let host = classify("code", code, &args(&[code, "--type=utility", "--utility-sub-type=node.mojom.NodeService", "--inspect-port=0"]));
+        assert_eq!(host.role, "VS Code: Extension host");
+        let pylance = classify("code", code, &args(&[code, "/home/me/.vscode/extensions/ms-python.vscode-pylance-2026.4.1/dist/server.bundle.js"]));
+        assert_eq!(pylance.role, "Pylance language server");
+        let vite = classify("node", "/usr/bin/node", &args(&["node", "/home/me/app/node_modules/vite/bin/vite.js"]));
+        assert_eq!(vite.category, Category::DevServer);
+    }
+
+    #[test]
+    fn rewritten_node_titles_are_recognised() {
+        assert_eq!(classify("next-server (v15", "/usr/bin/node", &args(&["next-server (v15.1.0)"])).tech.as_deref(), Some("Next.js"));
+        assert_eq!(classify("npm run dev", "/usr/bin/node", &args(&["npm run dev"])).category, Category::PackageManager);
+    }
+
+    #[test]
+    fn firefox_children_are_named_from_their_exe() {
+        let exe = "/usr/lib/firefox/firefox";
+        let tab = classify("Isolated Web Co", exe, &args(&[exe, "-contentproc", "-isForBrowser", "tab"]));
+        assert_eq!((tab.category, tab.role.as_str()), (Category::Browser, "Firefox: Tab or extension"));
+        assert_eq!(classify("firefox", exe, &args(&[exe])).role, "Firefox: Main process");
+    }
+
+    #[test]
+    fn linux_system_processes_are_recognised() {
+        for (name, exe) in [
+            ("systemd-journald", "/usr/lib/systemd/systemd-journald"),
+            ("gnome-shell", "/usr/bin/gnome-shell"),
+            ("gsd-color", "/usr/libexec/gsd-color"),
+            ("NetworkManager", "/usr/sbin/NetworkManager"),
+            ("sshd", "/usr/sbin/sshd"),
+            // Its executable can't be read without root, so the name has to be enough.
+            ("(sd-pam)", ""),
+        ] {
+            assert_eq!(classify(name, exe, &args(&[name])).category, Category::System, "{name}");
+        }
+        assert_eq!(classify("nginx", "/usr/sbin/nginx", &[]).category, Category::DevServer);
+        assert_eq!(classify("bash", "/usr/bin/bash", &[]).category, Category::Terminal);
+    }
+
+    #[test]
+    fn webkit_processes_are_named_for_what_they_do() {
+        let role = |name: &str| {
+            let exe = format!("/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/{name}");
+            classify(name, &exe, &args(&[&exe])).role
+        };
+        assert_eq!(role("WebKitWebProcess"), "WebKit: Web content");
+        assert_eq!(role("WebKitNetworkProcess"), "WebKit: Network process");
+        assert_eq!(role("WebKitGPUProcess"), "WebKit: GPU process");
+    }
+
+    #[test]
+    fn multiplexers_are_not_plain_shells() {
+        assert!(is_shell_role(&classify("zsh", "/usr/bin/zsh", &[]).role));
+        assert!(!is_shell_role(&classify("tmux", "/usr/bin/tmux", &[]).role));
     }
 
     #[test]

@@ -191,7 +191,7 @@ function TableRow(props: {
       {showApp && <span class="truncate">{p?.appLabel ?? ""}</span>}
       <span class="text-ink-2 truncate">{p?.project?.name ?? ""}</span>
       <span class="min-w-0 flex">{p ? <ImpactBadge impact={endImpact(p, childCount)} /> : null}</span>
-      <span class={p ? cell : `${cell} font-semibold`}>{dim ?? (t.private === 0 && !p ? "—" : bytes(t.private))}</span>
+      <span class={p ? cell : `${cell} font-semibold`}>{(p && !p.memoryKnown) || (!p && t.private === 0) ? "—" : bytes(t.private)}</span>
       <span class={`${cell} text-ink-2`}>{cpu(t.cpu)}</span>
       <span class={`${cell} text-ink-2`}>{dim ?? count(t.handles)}</span>
       <span class={`${cell} text-ink-2`}>{t.startTime === Infinity ? "—" : duration(now - t.startTime)}</span>

@@ -15,7 +15,8 @@ export function Background(props: { snapshot: Snapshot; onSelect: (key: string) 
   const [tab, setTab] = useState<Tab>("independent");
 
   const groups = useMemo(() => {
-    const windowApps = new Set(snapshot.processes.filter((p) => p.presence === "window").map((p) => p.appKey));
+    // An app that might have a window can't be called unattended.
+    const windowApps = new Set(snapshot.processes.filter((p) => p.presence === "window" || p.presence === "unknown").map((p) => p.appKey));
     const bySize = (a: ProcessInfo, b: ProcessInfo) => b.private - a.private;
     return {
       independent: snapshot.processes.filter((p) => isIndependent(p) && !windowApps.has(p.appKey)).sort(bySize),
@@ -47,7 +48,11 @@ export function Background(props: { snapshot: Snapshot; onSelect: (key: string) 
       </div>
       <Panel class="flex-1 min-h-0 overflow-auto">
         {rows.length === 0 ? (
-          <Empty title="Nothing here" />
+          tab === "independent" && !snapshot.system.windowsKnown ? (
+            <Empty title="Not available on Wayland">Wayland doesn't let apps see other apps' windows, so Wraith can't tell what's unattended.</Empty>
+          ) : (
+            <Empty title="Nothing here" />
+          )
         ) : (
           <table class="w-full border-collapse min-w-[900px] table-fixed">
             <thead class="sticky top-0 bg-surface z-10">
@@ -70,7 +75,7 @@ export function Background(props: { snapshot: Snapshot; onSelect: (key: string) 
                     {tab === "services" ? p.services.join(", ") : p.appLabel}
                   </td>
                   <td class="px-2 py-1"><span class="flex min-w-0"><ImpactBadge impact={endImpact(p, childCounts.get(p.key) ?? 0)} /></span></td>
-                  <td class="px-2 py-1 text-right tabular">{p.limited ? "—" : bytes(p.private)}</td>
+                  <td class="px-2 py-1 text-right tabular">{p.memoryKnown ? bytes(p.private) : "—"}</td>
                   <td class="px-2 py-1 text-right tabular text-ink-2">{cpu(p.cpu)}</td>
                   <td class="px-4 py-1 text-right tabular text-ink-2">{p.startKnown ? duration(snapshot.t - p.startTime) : "—"}</td>
                 </tr>

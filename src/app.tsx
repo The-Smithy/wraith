@@ -36,6 +36,11 @@ function NavIcon(props: { d: string }) {
   );
 }
 
+function accessLabel(platform: string, elevated: boolean): string {
+  if (platform === "windows") return elevated ? "Running as administrator" : "Not running as administrator";
+  return elevated ? "Running as root" : "Running as your user";
+}
+
 function readTheme(): Theme {
   try {
     const saved = localStorage.getItem("wraith-theme");
@@ -243,7 +248,7 @@ export function App() {
             Wraith: {bytes(snapshot.selfStats.private)}, {snapshot.selfStats.cpu.toFixed(1)}% CPU
           </div>
           <div>Sample took {snapshot.selfStats.sampleMs} ms</div>
-          <div>{snapshot.system.elevated ? "Running as administrator" : "Not running as administrator"}</div>
+          <div>{accessLabel(snapshot.system.platform, snapshot.system.elevated)}</div>
           {snapshot.system.limitedProcesses > 0 && <div>{snapshot.system.limitedProcesses} processes unreadable</div>}
         </div>
       </nav>
@@ -266,6 +271,7 @@ export function App() {
               byKey={byKey}
               now={snapshot.t}
               seq={snapshot.seq}
+              platform={snapshot.system.platform}
               onClose={() => setSelected(null)}
               onSelect={setSelected}
               onKill={(tree) => requestKill([selectedProcess], tree)}
@@ -278,6 +284,7 @@ export function App() {
       {kill && (
         <KillDialog
           request={kill}
+          platform={snapshot.system.platform}
           onClose={() => setKill(null)}
           onDone={(message) => {
             setKill(null);

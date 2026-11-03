@@ -28,13 +28,18 @@ export function Overview(props: { snapshot: Snapshot; onNavigate: (view: ViewId,
   const largest = topApps[0]?.private ?? 1;
   const ramPct = percent(system.usedMemory, system.totalMemory);
   const commitPct = percent(system.commitTotal, system.commitLimit);
+  const isWindows = system.platform === "windows";
   const reclaimable = insights.reduce((sum, i) => sum + i.reclaimable, 0);
 
   return (
     <div class="h-full overflow-y-auto p-4 space-y-3">
       <div class="grid grid-cols-5 gap-3">
         <Stat label="RAM in use" value={`${ramPct}%`} bar={ramPct} note={`${bytes(system.usedMemory)} of ${bytes(system.totalMemory)}`} />
-        <Stat label="Commit charge" value={`${commitPct}%`} bar={commitPct} note={`${bytes(system.commitTotal)} of ${bytes(system.commitLimit)}`} />
+        {system.commitLimit > 0 ? (
+          <Stat label="Commit charge" value={`${commitPct}%`} bar={commitPct} note={`${bytes(system.commitTotal)} of ${bytes(system.commitLimit)}`} />
+        ) : (
+          <Stat label="Committed" value={bytes(system.commitTotal)} note="The kernel enforces no limit" />
+        )}
         <Stat label="CPU" value={`${Math.round(system.cpu)}%`} bar={system.cpu} note={`${system.cpuCount} logical cores`} />
         <Stat label="Processes" value={count(system.processCount)} note={`${count(system.threadCount)} threads, ${count(system.handleCount)} handles`} />
         <Stat label="PC uptime" value={duration(system.uptimeSecs)} note={`Monitoring for ${duration(snapshot.t - snapshot.monitorSince)}`} />
@@ -121,11 +126,11 @@ export function Overview(props: { snapshot: Snapshot; onNavigate: (view: ViewId,
         <Panel title="Kernel and cache">
           <div class="px-4 pb-2 grid grid-cols-3 gap-3 text-xs">
             <div>
-              <div class="text-ink-3">Non-paged pool</div>
+              <div class="text-ink-3">{isWindows ? "Non-paged pool" : "Unreclaimable"}</div>
               <div class="text-[15px] font-semibold tabular">{bytes(system.kernelNonpaged)}</div>
             </div>
             <div>
-              <div class="text-ink-3">Paged pool</div>
+              <div class="text-ink-3">{isWindows ? "Paged pool" : "Reclaimable"}</div>
               <div class="text-[15px] font-semibold tabular">{bytes(system.kernelPaged)}</div>
             </div>
             <div>
@@ -134,12 +139,12 @@ export function Overview(props: { snapshot: Snapshot; onNavigate: (view: ViewId,
             </div>
           </div>
           <div class="px-3 pb-3">
-            <div class="text-xs text-ink-2 px-1 pb-0.5" title="Only drivers and the kernel can grow this, so steady growth points at a driver">Non-paged pool</div>
+            <div class="text-xs text-ink-2 px-1 pb-0.5" title="Only drivers and the kernel can grow this, so steady growth points at a driver">{isWindows ? "Non-paged pool" : "Unreclaimable kernel memory"}</div>
             <LineChart
               height={130}
               byteScale
               format={bytes}
-              series={[{ name: "Non-paged pool", color: "var(--series-1)", points: series.map((b): [number, number] => [b.t, b.nonpaged * KIB]) }]}
+              series={[{ name: isWindows ? "Non-paged pool" : "Unreclaimable", color: "var(--series-1)", points: series.map((b): [number, number] => [b.t, b.nonpaged * KIB]) }]}
             />
           </div>
         </Panel>

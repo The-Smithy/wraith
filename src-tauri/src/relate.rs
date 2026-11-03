@@ -4,8 +4,9 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::classify::{script_arg, Class};
+use crate::classify::{is_shell_role, script_arg, Class};
 use crate::model::{Category, Presence, ProcessInfo, Project};
+use crate::platform;
 
 /// Per process facts that never change, computed once when a process first appears.
 #[derive(Clone, Debug)]
@@ -41,6 +42,7 @@ pub struct Raw {
     pub gdi: u32,
     pub user_objects: u32,
     pub limited: bool,
+    pub memory_known: bool,
     /// False when Windows would not report a start time, so start_time is a stand-in.
     pub start_known: bool,
 }
@@ -49,6 +51,8 @@ pub struct Raw {
 pub struct Context {
     pub services: HashMap<u32, Vec<String>>,
     pub windows: HashMap<u32, String>,
+    /// True when a missing window proves nothing, because the OS won't tell.
+    pub windows_unknown: bool,
     pub ports: HashMap<u32, Vec<u16>>,
     pub connections: HashMap<u32, u32>,
 }
@@ -77,6 +81,15 @@ fn is_tool_path(lower: &str) -> bool {
         || p.contains("/.rustup/")
         || p.contains("/nvm4w/")
         || p.contains("/nvm/")
+        || p.contains("/.nvm/")
+        || p.contains("/.cache/")
+        || p.contains("/.local/share/")
+        || p.contains("/.vscode-server/")
+        || p.starts_with("/usr/")
+        || p.starts_with("/opt/")
+        || p.starts_with("/snap/")
+        || p.starts_with("/var/lib/")
+        || p.starts_with("/proc")
         || p.contains("/nodejs/")
         || p.contains("/python3")
 }
@@ -145,6 +158,19 @@ fn is_boundary(name_lower: &str) -> bool {
             | "sihost.exe"
             | "taskhostw.exe"
             | "system idle process"
+            | "kthreadd"
+            | "gnome-shell"
+            | "plasmashell"
+            | "kwin_wayland"
+            | "kwin_x11"
+            | "gdm"
+            | "gdm3"
+            | "sddm"
+            | "lightdm"
+            | "login"
+            | "sshd"
+            | "sway"
+            | "hyprland"
     )
 }
 
@@ -160,7 +186,18 @@ fn is_own_app(child: usize, parent: usize, raws: &[Raw], metas: &HashMap<String,
         return false;
     }
     let publisher = |raw: &Raw| metas.get(&raw.key).and_then(|m| m.publisher.clone());
+    let description = |raw: &Raw| metas.get(&raw.key).and_then(|m| m.description.clone());
+    // Linux executables have no publisher, so fall back on the installed app's name.
+    if publisher(c).is_none() && publisher(p).is_none() {
+        return description(c).is_some() && description(c) != description(p);
+    }
     publisher(c) != publisher(p)
+}
+
+/// Linux hands orphans to the init system, which also starts every desktop app and
+/// service. Being its child says nothing about what a process belongs to.
+fn is_init(name_lower: &str) -> bool {
+    matches!(name_lower, "systemd" | "init")
 }
 
 fn stem(name: &str) -> &str {
@@ -169,6 +206,7 @@ fn stem(name: &str) -> &str {
 
 pub fn relate(raws: &[Raw], metas: &HashMap<String, Meta>, ctx: &Context) -> Vec<ProcessInfo> {
     let by_pid: HashMap<u32, usize> = raws.iter().enumerate().map(|(i, r)| (r.pid, i)).collect();
+    let lower_names: Vec<String> = raws.iter().map(|r| r.name.to_lowercase()).collect();
 
     // A parent only counts if it started first. Windows reuses PIDs, so a matching
     // PID alone can point at an unrelated newer process.
@@ -177,7 +215,8 @@ pub fn relate(raws: &[Raw], metas: &HashMap<String, Meta>, ctx: &Context) -> Vec
         .enumerate()
         .map(|(i, r)| {
             let parent = *by_pid.get(&r.ppid?)?;
-            (parent != i && raws[parent].start_time <= r.start_time + 2).then_some(parent)
+            let real = parent != i && raws[parent].start_time <= r.start_time + 2 && !is_init(&lower_names[parent]);
+            real.then_some(parent)
         })
         .collect();
 
@@ -187,8 +226,6 @@ pub fn relate(raws: &[Raw], metas: &HashMap<String, Meta>, ctx: &Context) -> Vec
             children[*p].push(i);
         }
     }
-
-    let lower_names: Vec<String> = raws.iter().map(|r| r.name.to_lowercase()).collect();
 
     let roots: Vec<usize> = (0..raws.len())
         .map(|i| {
@@ -292,6 +329,8 @@ pub fn relate(raws: &[Raw], metas: &HashMap<String, Meta>, ctx: &Context) -> Vec
                 Presence::Service
             } else if root != i {
                 Presence::Child
+            } else if ctx.windows_unknown {
+                Presence::Unknown
             } else {
                 Presence::Background
             };
@@ -322,6 +361,7 @@ pub fn relate(raws: &[Raw], metas: &HashMap<String, Meta>, ctx: &Context) -> Vec
                 window_title,
                 presence,
                 limited: r.limited,
+                memory_known: r.memory_known,
                 private: r.private,
                 working_set: r.working_set,
                 private_ws: r.private_ws,
@@ -373,15 +413,15 @@ fn app_label(
                 return format!("Service: {only}");
             }
         }
-        return "Windows Services".into();
+        return platform::SERVICES_APP_LABEL.into();
     }
     if is_boundary(&lower_names[root]) || category == Category::System {
-        return "Windows".into();
+        return platform::SYSTEM_APP_LABEL.into();
     }
     // A dev tool whose launcher has exited is tied to nothing, so name it by what it does.
     let detached = parents[root].is_none()
         && r.ppid.is_some_and(|p| p != 0 && p != 4)
-        && (category.is_dev() || category == Category::Terminal)
+        && (category.is_dev() || meta.is_some_and(|m| is_shell_role(&m.class.role)))
         && !ctx.windows.contains_key(&r.pid);
     if detached {
         let role = meta.map_or("Process", |m| m.class.role.as_str());
@@ -491,7 +531,7 @@ mod tests {
         ctx.windows.insert(80, "Hello".into());
         let out = build(
             vec![
-                proc(70, 1, "mysvc.exe", 100, &[]),
+                proc(70, 1, "mysvc.exe", 100, &["mysvc.exe"]),
                 proc(71, 1, "svchost.exe", 100, &[]),
                 proc(79, 1, "host.exe", 100, &[]),
                 proc(80, 79, "child.exe", 110, &[]),
@@ -501,7 +541,7 @@ mod tests {
         let svc = out.iter().find(|p| p.pid == 70).unwrap();
         assert_eq!((svc.category, svc.presence), (Category::Service, Presence::Service));
         assert_eq!(svc.app_label, "Service: MySvc");
-        assert_eq!(out.iter().find(|p| p.pid == 71).unwrap().app_label, "Windows Services");
+        assert_eq!(out.iter().find(|p| p.pid == 71).unwrap().app_label, platform::SERVICES_APP_LABEL);
         assert_eq!(out.iter().find(|p| p.pid == 80).unwrap().presence, Presence::Window);
     }
 
@@ -583,13 +623,57 @@ mod tests {
         ctx.services.insert(71, vec!["Windows Update".into()]);
         ctx.services.insert(72, vec!["Parsec".into()]);
         let out = build(
-            vec![proc(71, 1, "svchost.exe", 100, &[]), proc(72, 1, "parsecd.exe", 100, &[])],
+            vec![proc(71, 1, "svchost.exe", 100, &[]), proc(72, 1, "parsecd.exe", 100, &["parsecd.exe"])],
             &ctx,
         );
         let host = out.iter().find(|p| p.pid == 71).unwrap();
         assert_eq!(host.category, Category::Service);
         assert!(host.protected);
         assert!(!out.iter().find(|p| p.pid == 72).unwrap().protected);
+    }
+
+    #[test]
+    fn init_is_not_a_meaningful_parent() {
+        let out = build(
+            vec![
+                proc(1, 0, "systemd", 10, &[]),
+                proc(50, 1, "node", 100, &["node", "/home/me/app/node_modules/vite/bin/vite.js"]),
+                proc(51, 1, "nginx", 100, &[]),
+            ],
+            &Context::default(),
+        );
+        let vite = out.iter().find(|p| p.pid == 50).unwrap();
+        assert_eq!(vite.parent_key, None);
+        assert!(vite.parent_gone);
+        assert_eq!(vite.app_label, "Detached: Vite dev server");
+        assert!(!out.iter().find(|p| p.pid == 1).unwrap().parent_gone);
+    }
+
+    #[test]
+    fn wayland_cannot_prove_an_app_has_no_window() {
+        let ctx = Context { windows_unknown: true, ..Default::default() };
+        let out = build(vec![proc(60, 1, "thing", 100, &[])], &ctx);
+        assert_eq!(out[0].presence, Presence::Unknown);
+    }
+
+    #[test]
+    fn on_linux_a_named_app_with_a_window_is_its_own_app() {
+        let mut ctx = Context::default();
+        ctx.windows.insert(20, "Editor".into());
+        let linux = |pid, ppid, name: &str, exe: &str, description: Option<&str>| {
+            let (mut raw, mut meta) = proc(pid, ppid, name, 100, &[name]);
+            raw.exe = exe.into();
+            meta.description = description.map(str::to_string);
+            (raw, meta)
+        };
+        let out = build(
+            vec![
+                linux(10, 5, "bash", "/usr/bin/bash", None),
+                linux(20, 10, "gimp", "/usr/bin/gimp", Some("GIMP")),
+            ],
+            &ctx,
+        );
+        assert_eq!(out[1].app_key, out[1].key);
     }
 
     #[test]
@@ -638,6 +722,9 @@ mod tests {
         assert!(is_tool_path(r"c:\users\me\appdata\local\programs\microsoft vs code"));
         assert!(is_tool_path(r"c:\windows\system32"));
         assert!(is_tool_path(r"c:\users\me\.vscode\extensions\foo"));
-        assert!(!is_tool_path(r"c:\projects\hearth"));
+        assert!(is_tool_path("/usr/share/code"));
+        assert!(is_tool_path("/home/me/.local/share/thing"));
+        assert!(!is_tool_path("/home/me/projects/my-app"));
+        assert!(!is_tool_path(r"c:\projects\my-app"));
     }
 }

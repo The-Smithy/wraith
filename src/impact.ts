@@ -66,6 +66,8 @@ function appChild(p: ProcessInfo, role: string): Impact {
   return impact("caution", "May break app", [`${p.appLabel} may crash or lose a feature`], `Restart ${p.appLabel} if it misbehaves.`);
 }
 
+const TERMINAL_APPS = /^(Windows Terminal|GNOME Terminal|Ptyxis|Konsole|xterm|kitty|foot|Tilix|Terminator|Xfce Terminal|Alacritty|WezTerm)$/;
+
 function terminal(p: ProcessInfo, role: string): Impact {
   if (role.startsWith("Shell command")) {
     return impact("safe", "Stops command", ["This one command stops"], "Run it again.");
@@ -73,7 +75,10 @@ function terminal(p: ProcessInfo, role: string): Impact {
   if (role === "Console host") {
     return impact("caution", "Closes a console", ["The program attached to it may exit"], "Start the program again.");
   }
-  if (p.presence === "window" || role === "Windows Terminal") {
+  if (role === "Terminal multiplexer") {
+    return impact("high", "Ends all sessions", ["Every session in it closes", "Anything running in them stops"], "Start a new session and rerun things.");
+  }
+  if (p.presence === "window" || TERMINAL_APPS.test(role)) {
     return impact("high", "Closes terminal", ["The window and its tabs close", "Anything running in them may stop"], "Open it again.");
   }
   return impact("caution", "Closes shell", ["This shell closes", "Programs it started may keep running"], "Open a new shell.");
@@ -83,14 +88,14 @@ function terminal(p: ProcessInfo, role: string): Impact {
 function ownImpact(p: ProcessInfo): Impact {
   const role = shortRole(p);
 
-  if (p.name.toLowerCase() === "wraith.exe") {
+  if (p.name.toLowerCase().replace(/\.exe$/, "") === "wraith") {
     return impact("blocked", "Is Wraith", ["This is Wraith itself"], "Quit from the tray icon.");
   }
   if (p.protected || p.category === "system") {
-    return impact("blocked", "Protected", ["Part of Windows, so Wraith will not end it", "Ending it could crash or sign out your PC"], "Nothing to do. Windows manages it.");
+    return impact("blocked", "Protected", ["Part of the operating system, so Wraith will not end it", "Ending it could crash or sign out your PC"], "Nothing to do. The system manages it.");
   }
   if (p.limited) {
-    return impact("blocked", "Access denied", ["Windows will not let Wraith read or end this"], "Some processes are locked even for administrators.");
+    return impact("blocked", "Access denied", ["The system will not let Wraith end this"], "Some processes are locked even for administrators.");
   }
   if (p.services.length > 0) {
     const named = p.services.slice(0, 3).join(", ");
@@ -98,8 +103,8 @@ function ownImpact(p: ProcessInfo): Impact {
     return impact(
       "high",
       p.services.length === 1 ? "Stops a service" : `Stops ${p.services.length} services`,
-      [`Stops ${named}${more}`, "Features that rely on it may break", "Windows may restart it"],
-      "Restart it from the Services app or reboot.",
+      [`Stops ${named}${more}`, "Features that rely on it may break", "It may restart on its own"],
+      "Restart it from your service manager or reboot.",
     );
   }
 
@@ -107,7 +112,8 @@ function ownImpact(p: ProcessInfo): Impact {
     case "editor":
       return editorPart(p, role);
     case "browser":
-      if (p.tech === "WebView2" && !HELPERS.test(role)) {
+      // HELPERS describes Chromium, so it says nothing about what WebKit restarts.
+      if (p.tech === "WebKit" || (p.tech === "WebView2" && !HELPERS.test(role))) {
         return impact("caution", "Breaks a web view", [`The web view inside ${p.appLabel} stops`, `${p.appLabel} may crash`], `Restart ${p.appLabel} if it misbehaves.`);
       }
       return chromiumPart(p, role, "browser") ?? impact("caution", "Browser may glitch", ["A background part of the browser stops"], "Restart the browser if something breaks.");
@@ -144,6 +150,10 @@ function ownImpact(p: ProcessInfo): Impact {
     case "versionControl":
       return impact("caution", "Stops Git", ["The operation stops partway", "It may leave a lock file behind"], "Delete .git/index.lock if Git complains.");
     case "app":
+      // Wayland can't say if it has a window, so don't call it safe.
+      if (p.presence === "unknown") {
+        return impact("caution", "Stops app", [`${role} stops`, "Any open windows close, losing unsaved work"], "Open it again.");
+      }
       if (p.presence === "window" || p.key === p.appKey) {
         return p.presence === "window"
           ? impact("high", `Closes ${role}`, [`${role} closes right away`, "Unsaved work is lost"], "Open it again.")
