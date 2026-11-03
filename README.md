@@ -88,6 +88,10 @@ npm test
 cargo test --manifest-path src-tauri/Cargo.toml --lib
 ```
 
+## Contributing
+
+See the [contributing guide](CONTRIBUTING.md) and the [roadmap](ROADMAP.md). AI agents must also follow [AGENTS.md](AGENTS.md). Every pull request needs the maintainer's approval.
+
 ## License
 
 [MIT](LICENSE)
